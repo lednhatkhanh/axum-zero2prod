@@ -3,6 +3,19 @@ name = "axum-zero2prod"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "axum-zero2prod"
+path = "src/main.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+axum = "0.6.0-rc.2"
+axum-macros = "0.3.0-rc.1"
+tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
+
+[dev-dependencies]
+tower = { version = "0.4.13", features = ["util"] }

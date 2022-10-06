@@ -2,6 +2,7 @@
 name = "axum-zero2prod"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [lib]
 path = "src/lib.rs"
@@ -15,7 +16,11 @@ path = "src/main.rs"
 [dependencies]
 axum = "0.6.0-rc.2"
 axum-macros = "0.3.0-rc.1"
+serde = { version = "1.0.145", features = ["derive"] }
 tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
 
 [dev-dependencies]
+fake = { version = "2.5.0", features = ["chrono", "uuid"] }
+mime = "0.3.16"
+serde_json = "1.0.85"
 tower = { version = "0.4.13", features = ["util"] }

@@ -2,11 +2,13 @@ use axum::{
     body::Body,
     http::{self, Request},
 };
-use axum_zero2prod::get_app;
 use fake::{faker::internet::raw::SafeEmail, locales};
 use fake::{faker::name::raw::*, Fake};
 use serde_json::json;
+use sqlx::PgPool;
 use tower::ServiceExt;
+
+use crate::helpers::spawn_app;
 
 fn fake_name() -> String {
     Name(locales::EN).fake()
@@ -16,20 +18,23 @@ fn fake_email() -> String {
     SafeEmail(locales::EN).fake()
 }
 
-#[tokio::test]
-async fn subscribe_returns_a_200_for_valid_form_data() {
+#[sqlx::test]
+async fn subscribe_returns_a_200_for_valid_form_data(pool: PgPool) -> sqlx::Result<()> {
     // Arrange
-    let app = get_app();
+    let test_app = spawn_app(pool.clone());
+    let name = fake_name();
+    let email = fake_email();
 
     // Act
-    let response = app
+    let response = test_app
+        .app
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
                 .uri("/subscribe")
                 .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                 .body(Body::from(
-                    json!({"name": fake_name(), "email": fake_email()}).to_string(),
+                    json!({"name": name, "email": email}).to_string(),
                 ))
                 .expect("Failed to build request."),
         )
@@ -38,12 +43,22 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     // Assert
     assert_eq!(200, response.status().as_u16());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to fetch saved subscriptions");
+
+    assert_eq!(saved.email, email);
+    assert_eq!(saved.name, name);
+
+    Ok(())
 }
 
-#[tokio::test]
-async fn subscribe_returns_a_422_when_data_is_missing() {
+#[sqlx::test]
+async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) -> sqlx::Result<()> {
     // Arrange
-    let app = get_app();
+    let test_app = spawn_app(pool);
     let test_cases = vec![
         (
             json!({ "name": fake_name() }).to_string(),
@@ -58,7 +73,8 @@ async fn subscribe_returns_a_422_when_data_is_missing() {
 
     // Act
     for (invalid_body, error_message) in test_cases {
-        let response = app
+        let response = test_app
+            .app
             .clone()
             .oneshot(
                 Request::builder()
@@ -78,4 +94,6 @@ async fn subscribe_returns_a_422_when_data_is_missing() {
             error_message
         );
     }
+
+    Ok(())
 }

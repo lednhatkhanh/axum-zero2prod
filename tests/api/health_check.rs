@@ -2,12 +2,16 @@ use axum::{
     body::Body,
     http::{self, Request, StatusCode},
 };
-use axum_zero2prod::get_app;
+use sqlx::PgPool;
 use tower::ServiceExt;
 
-#[tokio::test]
-async fn health_check_works() {
-    let response = get_app()
+use crate::helpers::spawn_app;
+
+#[sqlx::test]
+async fn health_check_works(pool: PgPool) -> sqlx::Result<()> {
+    let test_app = spawn_app(pool);
+    let response = test_app
+        .app
         .oneshot(
             Request::builder()
                 .method(http::Method::GET)
@@ -22,4 +26,6 @@ async fn health_check_works() {
 
     let content_length_header = response.headers().get("content-length");
     assert_eq!("0", content_length_header.unwrap());
+
+    Ok(())
 }

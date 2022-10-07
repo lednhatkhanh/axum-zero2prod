@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  postgres:
+    container_name: axum-zero2prod-postgres
+    image: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      PGDATA: /data/postgres
+    ports:
+      - "5432:5432"

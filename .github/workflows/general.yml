@@ -1,0 +1,115 @@
+name: Rust
+
+on:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: admin
+          POSTGRES_DB: axum-zero2prod
+        ports:
+          - 5432:5432
+    env:
+      SQLX_VERSION: 0.6.2
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cache sqlx-cli
+        uses: actions/cache@v3
+        id: cache-sqlx
+        with:
+          path: |
+            ~/.cargo/bin/sqlx
+            ~/.cargo/bin/cargo-sqlx
+          key: ${{ runner.os }}-sqlx-${{ env.SQLX_VERSION }}
+      - name: Install sqlx-cli
+        uses: actions-rs/cargo@v1
+        if: steps.cache-sqlx.outputs.cache-hit == false
+        with:
+          command: install
+          args: >
+            sqlx-cli
+            --force
+            --version=${{ env.SQLX_VERSION }}
+      - name: Migrate database
+        run: |
+          sudo apt-get install libpq-dev -y
+          sqlx migrate run
+      - uses: rui314/setup-mold@v1
+      - run: rustup toolchain install nightly --profile default
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: rustup toolchain install nightly --profile default
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    env:
+      SQLX_VERSION: 0.6.2
+      SQLX_OFFLINE: true
+    steps:
+      - uses: actions/checkout@v3
+      - run: rustup toolchain install nightly --profile default
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy
+
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: admin
+          POSTGRES_DB: axum-zero2prod
+        ports:
+          - 5432:5432
+    env:
+      SQLX_VERSION: 0.6.2
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cache sqlx-cli
+        uses: actions/cache@v3
+        id: cache-sqlx
+        with:
+          path: |
+            ~/.cargo/bin/sqlx
+            ~/.cargo/bin/cargo-sqlx
+          key: ${{ runner.os }}-sqlx-${{ env.SQLX_VERSION }}
+      - name: Install sqlx-cli
+        uses: actions-rs/cargo@v1
+        if: steps.cache-sqlx.outputs.cache-hit == false
+        with:
+          command: install
+          args: >
+            sqlx-cli
+            --force
+            --version=${{ env.SQLX_VERSION }}
+      - name: Migrate database
+        run: |
+          sudo apt-get install libpq-dev -y
+          sqlx migrate run
+      - uses: rui314/setup-mold@v1
+      - run: rustup toolchain install nightly --profile default
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-tarpaulin --locked
+      - run: cp configuration.example.yaml configuration.yaml
+      - run: cargo tarpaulin --ignore-tests

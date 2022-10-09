@@ -21,7 +21,7 @@
 
 ## Running linter and formatter
 
-- Run `cargo clippy` to lint and `cargo fmt` to format code
+- Run `SQLX_OFFLINE=true cargo clippy` to lint and `cargo fmt` to format code
 - Run `cargo deny check` to run security check all dependencies
 
 ## LICENSE

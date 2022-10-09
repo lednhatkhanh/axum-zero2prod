@@ -97,3 +97,49 @@ async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) -> sqlx::Res
 
     Ok(())
 }
+
+#[sqlx::test]
+async fn subscribe_returns_a_422_when_fields_are_present_but_invalid(
+    pool: PgPool,
+) -> sqlx::Result<()> {
+    let test_app = spawn_app(pool);
+    let test_cases = vec![
+        (
+            json!({"name": "","email": fake_email()}).to_string(),
+            "empty name",
+        ),
+        (
+            json!({"name": fake_name(),"email": ""}).to_string(),
+            "empty email",
+        ),
+        (
+            json!( {"name": fake_name(),"email": fake_name()}).to_string(),
+            "invalid email",
+        ),
+    ];
+
+    for (body, description) in test_cases {
+        let response = test_app
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri("/subscribe")
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::from(body))
+                    .expect("Failed to build request."),
+            )
+            .await
+            .expect("Failed to execute request.");
+
+        assert_eq!(
+            422,
+            response.status().as_u16(),
+            "The API did not return a 422 UNPROCESSABLE ENTITY when the payload was {}.",
+            description
+        );
+    }
+
+    Ok(())
+}

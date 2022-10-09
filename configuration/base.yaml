@@ -5,4 +5,4 @@ database:
   port: 5432
   username: "admin"
   password: "admin"
-  database_name: "axum-zero2prod"
+  database_name: "newsletter"

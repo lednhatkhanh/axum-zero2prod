@@ -47,7 +47,6 @@ jobs:
         run: |
           sudo apt-get install libpq-dev -y
           sqlx migrate run
-      - uses: rui314/setup-mold@v1
       - run: rustup toolchain install nightly --profile default
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
@@ -110,9 +109,7 @@ jobs:
         run: |
           sudo apt-get install libpq-dev -y
           sqlx migrate run
-      - uses: rui314/setup-mold@v1
       - run: rustup toolchain install nightly --profile default
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-tarpaulin --locked
-      - run: cp configuration.example.yaml configuration.yaml
       - run: cargo tarpaulin --ignore-tests

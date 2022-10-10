@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use axum_zero2prod::{
     configurations::get_configuration,
+    email_client::EmailClient,
     startup::get_app,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -23,7 +24,17 @@ async fn main() {
     );
     let address: SocketAddr = address.parse().expect("Failed to parse address.");
 
-    let app = get_app(connection_pool);
+    let sender = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address");
+    let email_client = EmailClient::new(
+        configuration.email_client.base_url,
+        sender,
+        configuration.email_client.authorization_token,
+    );
+
+    let app = get_app(connection_pool, email_client);
 
     axum::Server::bind(&address)
         .serve(app.into_make_service())

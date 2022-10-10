@@ -6,7 +6,6 @@ use axum_zero2prod::{
     telemetry::{get_subscriber, init_subscriber},
 };
 use once_cell::sync::Lazy;
-use secrecy::Secret;
 use sqlx::PgPool;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -34,7 +33,8 @@ pub fn spawn_app(pool: PgPool) -> TestApp {
     let email_client = EmailClient::new(
         configuration.email_client.base_url,
         sender,
-        Secret::from("asd".to_string()),
+        configuration.email_client.authorization_token,
+        std::time::Duration::from_millis(200),
     );
 
     let app = get_app(pool, email_client);

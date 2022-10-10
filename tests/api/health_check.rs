@@ -9,7 +9,7 @@ use crate::helpers::spawn_app;
 
 #[sqlx::test]
 async fn health_check_works(pool: PgPool) -> sqlx::Result<()> {
-    let test_app = spawn_app(pool);
+    let test_app = spawn_app(pool).await;
     let response = test_app
         .app
         .oneshot(

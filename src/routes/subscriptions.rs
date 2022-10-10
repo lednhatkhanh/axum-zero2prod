@@ -1,4 +1,9 @@
-use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
+use std::sync::Arc;
+
+use crate::{
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    email_client::EmailClient,
+};
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
 use axum_macros::debug_handler;
 use chrono::Utc;
@@ -14,7 +19,7 @@ pub struct FormData {
 #[debug_handler]
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(pool, form),
+    skip(pool, form, email_client),
     fields(
         subscriber_email = %form.email,
         subscriber_name = %form.name
@@ -22,6 +27,7 @@ pub struct FormData {
 )]
 pub async fn subscribe(
     Extension(pool): Extension<PgPool>,
+    Extension(email_client): Extension<Arc<EmailClient>>,
     Json(form): Json<FormData>,
 ) -> impl IntoResponse {
     let new_subscriber: NewSubscriber = match form.try_into() {
@@ -29,10 +35,24 @@ pub async fn subscribe(
         Err(_) => return StatusCode::UNPROCESSABLE_ENTITY,
     };
 
-    match insert_subscriber(&pool, &new_subscriber).await {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    if insert_subscriber(&pool, &new_subscriber).await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
+
+    let res = email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            "Welcome to our newsletter",
+            "Welcome to our newsletter",
+        )
+        .await;
+
+    if res.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
     }
+
+    StatusCode::OK
 }
 
 impl TryFrom<FormData> for NewSubscriber {

@@ -7,6 +7,10 @@ use fake::{faker::name::raw::*, Fake};
 use serde_json::json;
 use sqlx::PgPool;
 use tower::ServiceExt;
+use wiremock::{
+    matchers::{method, path},
+    Mock, ResponseTemplate,
+};
 
 use crate::helpers::spawn_app;
 
@@ -21,9 +25,16 @@ fn fake_email() -> String {
 #[sqlx::test]
 async fn subscribe_returns_a_200_for_valid_form_data(pool: PgPool) -> sqlx::Result<()> {
     // Arrange
-    let test_app = spawn_app(pool.clone());
+    let test_app = spawn_app(pool.clone()).await;
     let name = fake_name();
     let email = fake_email();
+
+    Mock::given(path("/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
 
     // Act
     let response = test_app
@@ -58,7 +69,7 @@ async fn subscribe_returns_a_200_for_valid_form_data(pool: PgPool) -> sqlx::Resu
 #[sqlx::test]
 async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) -> sqlx::Result<()> {
     // Arrange
-    let test_app = spawn_app(pool);
+    let test_app = spawn_app(pool).await;
     let test_cases = vec![
         (
             json!({ "name": fake_name() }).to_string(),
@@ -102,7 +113,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) -> sqlx::Res
 async fn subscribe_returns_a_422_when_fields_are_present_but_invalid(
     pool: PgPool,
 ) -> sqlx::Result<()> {
-    let test_app = spawn_app(pool);
+    let test_app = spawn_app(pool).await;
     let test_cases = vec![
         (
             json!({"name": "","email": fake_email()}).to_string(),
@@ -140,6 +151,23 @@ async fn subscribe_returns_a_422_when_fields_are_present_but_invalid(
             description
         );
     }
+
+    Ok(())
+}
+
+#[sqlx::test]
+async fn subscribe_sends_a_confirmation_email_for_valid_data(pool: PgPool) -> sqlx::Result<()> {
+    let test_app = spawn_app(pool).await;
+    let body = Body::from(json!({"name": fake_name(), "email": fake_email()}).to_string());
+
+    Mock::given(path("/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
+    // Act
+    test_app.post_subscriptions(body.into()).await;
 
     Ok(())
 }

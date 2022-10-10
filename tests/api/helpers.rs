@@ -1,4 +1,8 @@
-use axum::Router;
+use axum::{
+    body::Body,
+    http::{self, Request},
+    Router,
+};
 use axum_zero2prod::{
     configurations::get_configuration,
     email_client::EmailClient,
@@ -7,6 +11,8 @@ use axum_zero2prod::{
 };
 use once_cell::sync::Lazy;
 use sqlx::PgPool;
+use tower::ServiceExt;
+use wiremock::MockServer;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
     if std::env::var("TEST_LOG").is_ok() {
@@ -20,12 +26,38 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 
 pub struct TestApp {
     pub app: Router,
+    pub email_server: MockServer,
 }
 
-pub fn spawn_app(pool: PgPool) -> TestApp {
+impl TestApp {
+    pub async fn post_subscriptions(&self, body: Body) {
+        self.app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri("/subscribe")
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::from(body))
+                    .expect("Failed to build request."),
+            )
+            .await
+            .expect("Failed to execute request.");
+    }
+}
+
+pub async fn spawn_app(pool: PgPool) -> TestApp {
     Lazy::force(&TRACING);
 
-    let configuration = get_configuration().expect("Failed to read configuration.");
+    let email_server = MockServer::start().await;
+
+    let configuration = {
+        let mut c = get_configuration().expect("Failed to read configuration.");
+
+        c.email_client.base_url = email_server.uri();
+
+        c
+    };
     let sender = configuration
         .email_client
         .sender()
@@ -39,5 +71,5 @@ pub fn spawn_app(pool: PgPool) -> TestApp {
 
     let app = get_app(pool, email_client);
 
-    TestApp { app }
+    TestApp { app, email_server }
 }

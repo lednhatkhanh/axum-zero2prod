@@ -1,24 +1,17 @@
-use axum::{
-    body::Body,
-    http::{self, Request, StatusCode},
-};
+use axum::{body::Body, http::StatusCode};
 use sqlx::PgPool;
-use tower::ServiceExt;
 
 use crate::helpers::spawn_app;
 
 #[sqlx::test]
 async fn health_check_works(pool: PgPool) -> sqlx::Result<()> {
     let test_app = spawn_app(pool).await;
+    dbg!(test_app.url_for("/health_check"));
     let response = test_app
-        .app
-        .oneshot(
-            Request::builder()
-                .method(http::Method::GET)
-                .uri("/health_check")
-                .body(Body::empty())
-                .expect("Failed to build request."),
-        )
+        .client
+        .get(test_app.url_for("/health_check"))
+        .body(Body::empty())
+        .send()
         .await
         .expect("Failed to execute request.");
 

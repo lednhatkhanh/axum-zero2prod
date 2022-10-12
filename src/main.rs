@@ -36,7 +36,11 @@ async fn main() {
         timeout,
     );
 
-    let app = get_app(connection_pool, email_client);
+    let app = get_app(
+        connection_pool,
+        email_client,
+        configuration.application.base_url,
+    );
 
     axum::Server::bind(&address)
         .serve(app.into_make_service())

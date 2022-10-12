@@ -28,6 +28,7 @@ pub struct FormData {
 pub async fn subscribe(
     Extension(pool): Extension<PgPool>,
     Extension(email_client): Extension<Arc<EmailClient>>,
+    Extension(base_url): Extension<String>,
     Json(form): Json<FormData>,
 ) -> impl IntoResponse {
     let new_subscriber: NewSubscriber = match form.try_into() {
@@ -39,20 +40,44 @@ pub async fn subscribe(
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
 
-    let res = email_client
-        .send_email(
-            new_subscriber.email,
-            "Welcome!",
-            "Welcome to our newsletter",
-            "Welcome to our newsletter",
-        )
-        .await;
+    let res = send_confirmation_email(&email_client, new_subscriber, base_url).await;
 
     if res.is_err() {
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
 
     StatusCode::OK
+}
+
+#[tracing::instrument(
+    name = "Send a confirmation email to a new subscriber",
+    skip(email_client, new_subscriber)
+)]
+async fn send_confirmation_email(
+    email_client: &EmailClient,
+    new_subscriber: NewSubscriber,
+    base_url: String,
+) -> Result<(), reqwest::Error> {
+    let confirmation_link = format!(
+        "{}/subscriptions/confirm?subscription_token=mytoken",
+        base_url
+    );
+
+    email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            &format!(
+                "Welcome to our newsletter!<br />\
+                Click <a href=\"{}\">here</a> to confirm your subscription.",
+                confirmation_link
+            ),
+            &format!(
+                "Welcome to our newsletter!\nVisit {} to confirm your subscription.",
+                confirmation_link
+            ),
+        )
+        .await
 }
 
 impl TryFrom<FormData> for NewSubscriber {
@@ -73,7 +98,7 @@ pub async fn insert_subscriber(
     new_subscriber: &NewSubscriber,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO subscriptions (id, email, name, subscribed_at, status) VALUES ($1, $2, $3, $4, 'confirmed')",
+        "INSERT INTO subscriptions (id, email, name, subscribed_at, status) VALUES ($1, $2, $3, $4, 'pending_confirmation')",
         Uuid::new_v4(),
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
